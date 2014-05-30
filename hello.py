@@ -1,5 +1,6 @@
 import os
 from flask import Flask, jsonify
+from flask.ext.cors import *
 
 app = Flask(__name__)
 
@@ -19,6 +20,7 @@ tasks = [
 ]
 
 @app.route('/todo/api/v1.0/tasks', methods = ['GET'])
+@cross_origin()
 def get_tasks():
     return jsonify( { 'tasks': tasks } )
 
