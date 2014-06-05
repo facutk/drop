@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify, request, abort, make_response
+from flask import Flask, jsonify, request, abort, make_response, url_for
 
 app = Flask(__name__)
 
@@ -18,13 +18,22 @@ tasks = [
     }
 ]
 
+def make_public_task(task):
+    new_task = {}
+    for field in task:
+        if field == 'id':
+            new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
+        else:
+            new_task[field] = task[field]
+    return new_task
+
 @app.after_request
 def add_cors(resp):
     """ Ensure all responses have the CORS headers. This ensures any failures are also accessible
         by the client. """
     resp.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin','*')
     resp.headers['Access-Control-Allow-Credentials'] = 'true'
-    resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS, GET'
+    resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS, GET, PUT, DELETE'
     resp.headers['Access-Control-Allow-Headers'] = request.headers.get( 'Access-Control-Request-Headers', 'Authorization' )
     # set low for debugging
     if app.debug:
@@ -35,17 +44,26 @@ def add_cors(resp):
 def not_found(error):
     return make_response(jsonify( { 'error': 'Not found' } ), 404)
     
+def make_public_task(task):
+    new_task = {}
+    for field in task:
+        if field == 'id':
+            new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
+        else:
+            new_task[field] = task[field]
+    return new_task
+    
 @app.route('/todo/api/v1.0/tasks', methods = ['GET'])
 def get_tasks():
-    return jsonify( { 'tasks': tasks } )
-
+    return jsonify( { 'tasks': map(make_public_task, tasks) } )
+ 
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['GET'])
 def get_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
     if len(task) == 0:
         abort(404)
-    return jsonify( { 'task': task[0] } )
-
+    return jsonify( { 'task': make_public_task(task[0]) } )
+ 
 @app.route('/todo/api/v1.0/tasks', methods = ['POST'])
 def create_task():
     if not request.json or not 'title' in request.json:
@@ -57,8 +75,8 @@ def create_task():
         'done': False
     }
     tasks.append(task)
-    return jsonify( { 'task': task } ), 201
-
+    return jsonify( { 'task': make_public_task(task) } ), 201
+ 
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['PUT'])
 def update_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
@@ -75,8 +93,8 @@ def update_task(task_id):
     task[0]['title'] = request.json.get('title', task[0]['title'])
     task[0]['description'] = request.json.get('description', task[0]['description'])
     task[0]['done'] = request.json.get('done', task[0]['done'])
-    return jsonify( { 'task': task[0] } )
-
+    return jsonify( { 'task': make_public_task(task[0]) } )
+    
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['DELETE'])
 def delete_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
@@ -84,7 +102,7 @@ def delete_task(task_id):
         abort(404)
     tasks.remove(task[0])
     return jsonify( { 'result': True } )
-
+    
 @app.route('/')
 def hello():
     return 'Hello Heroku!'
