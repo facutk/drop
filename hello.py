@@ -26,10 +26,9 @@ greetings = 45
 def make_public_task(task):
     new_task = {}
     for field in task:
+        new_task[field] = task[field]
         if field == 'id':
             new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
-        else:
-            new_task[field] = task[field]
     return new_task
 
 @app.after_request
