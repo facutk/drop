@@ -1,7 +1,10 @@
 import os
 from flask import Flask, jsonify, request, abort, make_response, url_for
+from werkzeug.contrib.cache import SimpleCache
 
 app = Flask(__name__)
+cache = SimpleCache()
+cache.set('greeting', 0)
 
 tasks = [
     {
@@ -17,6 +20,8 @@ tasks = [
         'done': False
     }
 ]
+
+greetings = 45
 
 def make_public_task(task):
     new_task = {}
@@ -43,15 +48,6 @@ def add_cors(resp):
 @app.errorhandler(404)
 def not_found(error):
     return make_response(jsonify( { 'error': 'Not found' } ), 404)
-    
-def make_public_task(task):
-    new_task = {}
-    for field in task:
-        if field == 'id':
-            new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
-        else:
-            new_task[field] = task[field]
-    return new_task
     
 @app.route('/todo/api/v1.0/tasks', methods = ['GET'])
 def get_tasks():
@@ -102,7 +98,13 @@ def delete_task(task_id):
         abort(404)
     tasks.remove(task[0])
     return jsonify( { 'result': True } )
-    
+
+@app.route('/greeting')
+def greeting():
+    greeting = cache.get('greeting')
+    cache.set('greeting', greeting + 1)
+    return jsonify( {'id': greeting, 'content': 'Hello, World!'} )
+
 @app.route('/')
 def hello():
     return 'Hello Heroku!'
