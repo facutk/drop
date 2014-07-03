@@ -1,6 +1,10 @@
 import os, datetime, calendar
 from flask import Flask, jsonify, request, abort, make_response, url_for
 from werkzeug.contrib.cache import SimpleCache
+from werkzeug.utils import secure_filename
+import Image
+import requests
+import uuid
 
 app = Flask(__name__)
 cache = SimpleCache()
@@ -22,6 +26,12 @@ tasks = [
         'timestamp': datetime.datetime.utcnow()
     }
 ]
+
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+
 
 def make_public_task(task):
     new_task = {}
@@ -102,6 +112,20 @@ def delete_task(task_id):
     tasks.remove(task[0])
     return jsonify( { 'result': True } )
 
+@app.route('/todo/api/v1.0/tasks/image', methods=['POST'])
+def image():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save( filename )
+            url = os.environ['DROP_IMG_STORAGE']
+            files = {'file': ( filename, open(filename, 'rb')) }
+            data = {'secret': os.environ['DROP_IMG_SECRET'] }
+            r = requests.post(url, data=data, files=files)
+            return jsonify( { 'result': True } )
+    jsonify( { 'result': 'Error' } )
+    
 @app.route('/greeting')
 def greeting():
     greeting = cache.get('greeting')
