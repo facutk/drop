@@ -2,9 +2,7 @@ import os, datetime, calendar
 from flask import Flask, jsonify, request, abort, make_response, url_for
 from werkzeug.contrib.cache import SimpleCache
 from werkzeug.utils import secure_filename
-import Image
 import requests
-import uuid
 
 app = Flask(__name__)
 cache = SimpleCache()
