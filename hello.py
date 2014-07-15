@@ -1,13 +1,24 @@
-import os, datetime, calendar
+import os, datetime, calendar, json, requests
 from flask import Flask, jsonify, request, abort, make_response, url_for
 from werkzeug.contrib.cache import SimpleCache
 from werkzeug.utils import secure_filename
-import requests
+from flask.ext.sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL'] #'sqlite:///app.db'
+db = SQLAlchemy(app)
+
 cache = SimpleCache()
 cache.set('greeting', 0)
 
+class Counter(db.Model):
+    id = db.Column(db.Integer, primary_key = True )
+    count = db.Column( db.Integer )
+    
+    @property
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        
 tasks = [
     {
         'id': 1,
@@ -124,12 +135,29 @@ def image():
             return jsonify( { 'result': True } )
     jsonify( { 'result': 'Error' } )
     
+def image():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save( filename )
+            url = os.environ['DROP_IMG_STORAGE']
+            files = {'file': ( filename, open(filename, 'rb')) }
+            data = {'secret': os.environ['DROP_IMG_SECRET'] }
+            r = requests.post(url, data=data, files=files)
+            return jsonify( { 'result': True } )
+    jsonify( { 'result': 'Error' } )
+    
 @app.route('/greeting')
 def greeting():
     greeting = cache.get('greeting')
     cache.set('greeting', greeting + 1)
     return jsonify( {'id': greeting, 'content': 'Hello, World!'} )
 
+@app.route('/counters', methods=['GET'])
+def get_counters():
+    return jsonify( { 'counters':[ c.as_dict for c in Counter.query.all() ] } )
+    
 @app.route('/')
 def hello():
     return 'Hello Heroku!'
