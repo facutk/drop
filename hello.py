@@ -3,6 +3,8 @@ from flask import Flask, jsonify, request, abort, make_response, url_for
 from werkzeug.contrib.cache import SimpleCache
 from werkzeug.utils import secure_filename
 from flask.ext.sqlalchemy import SQLAlchemy
+from passlib.apps import custom_app_context as pwd_context
+from sqlalchemy.dialects.postgresql import JSON
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
@@ -13,8 +15,18 @@ cache.set('greeting', 0)
 
 class Counter(db.Model):
     id = db.Column(db.Integer, primary_key = True )
+    mail = db.Column(db.String(32))
+    password_hash = db.Column(db.String(128))
     count = db.Column( db.Integer )
-    
+    images = db.Column( JSON )
+    sequences = db.Column( JSON )
+
+    def hash_password(self, password):
+        self.password_hash = pwd_context.encrypt(password)
+
+    def verify_password(self, password):
+        return pwd_context.verify(password, self.password_hash)
+        
     @property
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
