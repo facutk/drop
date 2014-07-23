@@ -147,19 +147,6 @@ def image():
             return jsonify( { 'result': True } )
     jsonify( { 'result': 'Error' } )
     
-def image():
-    if request.method == 'POST':
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save( filename )
-            url = os.environ['DROP_IMG_STORAGE']
-            files = {'file': ( filename, open(filename, 'rb')) }
-            data = {'secret': os.environ['DROP_IMG_SECRET'] }
-            r = requests.post(url, data=data, files=files)
-            return jsonify( { 'result': True } )
-    jsonify( { 'result': 'Error' } )
-    
 @app.route('/greeting')
 def greeting():
     greeting = cache.get('greeting')
