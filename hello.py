@@ -1,17 +1,23 @@
 import os, datetime, calendar, json, requests
-from flask import Flask, jsonify, request, abort, make_response, url_for
+from flask import Flask, jsonify, request, abort, make_response, url_for, g
 from werkzeug.contrib.cache import SimpleCache
 from werkzeug.utils import secure_filename
 from flask.ext.sqlalchemy import SQLAlchemy
 from passlib.apps import custom_app_context as pwd_context
 from sqlalchemy.dialects.postgresql import JSON
+from flask.ext.httpauth import HTTPBasicAuth
+from itsdangerous import JSONWebSignatureSerializer as Serializer
+from itsdangerous import BadSignature
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
+app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 db = SQLAlchemy(app)
 
 cache = SimpleCache()
 cache.set('greeting', 0)
+
+auth = HTTPBasicAuth()
 
 class Counter(db.Model):
     id = db.Column(db.Integer, primary_key = True )
@@ -26,6 +32,20 @@ class Counter(db.Model):
 
     def verify_password(self, password):
         return pwd_context.verify(password, self.password_hash)
+        
+    def generate_auth_token( self ):
+        s = Serializer(app.config['SECRET_KEY'])
+        return s.dumps({ 'id': self.id })
+        
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except BadSignature:
+            return None # invalid token
+        counter = Counter.query.get(data['id'])
+        return counter
         
     @property
     def as_dict(self):
@@ -63,7 +83,19 @@ def make_public_task(task):
         if field == 'id':
             new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
     return new_task
-
+    
+@auth.verify_password
+def verify_password(token_or_mail, password):
+    # first try to authenticate by token
+    counter = Counter.verify_auth_token(token_or_mail)
+    if not counter:
+        # try to authenticate with mail/password
+        counter = Counter.query.filter_by(mail = token_or_mail).first()
+        if not counter or not counter.verify_password(password):
+            return False
+    g.counter = counter
+    return True
+    
 @app.after_request
 def add_cors(resp):
     """ Ensure all responses have the CORS headers. This ensures any failures are also accessible
@@ -156,6 +188,17 @@ def greeting():
 @app.route('/counters', methods=['GET'])
 def get_counters():
     return jsonify( { 'counters':[ c.as_dict for c in Counter.query.all() ] } )
+    
+@app.route('/api/resource')
+@auth.login_required
+def get_resource():
+    return jsonify({ 'data': 'Hello, %s!' % g.counter.mail })
+    
+@app.route('/api/token', methods=['GET', 'POST'])
+@auth.login_required
+def get_auth_token():
+    token = g.counter.generate_auth_token()
+    return jsonify({ 'token': token.decode('ascii') })
     
 @app.route('/')
 def hello():
